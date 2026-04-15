@@ -8,10 +8,26 @@
 - [ ] API key created (Trading + Read, **NO withdrawal**)
 - [ ] BNB ≥ $20 в аккаунте для fee discount (0.075% vs 0.1%)
 - [ ] Telegram bot создан через @BotFather, токен получен
-- [ ] `.env` заполнен (см. README.md)
-- [ ] `make test` зелёные (16 tests)
+- [ ] `cp .env.example .env` + заполнить actual values
+- [ ] `make test` зелёные (26 tests)
 - [ ] `make scan` показывает разумный ranking universe
 - [ ] system clock synced (NTP) — для stop-loss timestamps
+
+## ⚠️ HONEST maxDD expectations
+
+Research настоящий intra-period drawdown (daily equity tracking):
+
+| variant | annual (4y bt) | REAL maxDD |
+|---------|----------------|------------|
+| classic top-3 (DEFAULT) | +158% | **−61.8%** |
+| dual top-3 | +164% | −61.8% |
+| timeseries max_n=13 | +177% | **−44.8%** (best) |
+
+**НЕ −3% как казалось при rebalance-only tracking!**
+
+`MAX_DRAWDOWN_PCT=0.30` default **срабатывает** на обычных bear moves.
+Если deploy timeseries — raise `MAX_DRAWDOWN_PCT=0.60` чтобы не halt'нуть
+в normal volatility.
 
 ## .env example
 

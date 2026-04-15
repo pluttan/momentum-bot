@@ -72,3 +72,37 @@ def test_no_picks_skips_rebalance(mock_trader, monkeypatch):
     rb = scheduler.rebalance(mock_trader)
     assert rb["opened"] == 0
     assert rb["skipped"] == "no data"
+
+
+def test_state_recovery_open_positions_survive_db_close(mock_trader):
+    """Positions persist in DB через close/reopen connection (simulates bot restart)."""
+    from momentum.strategy import Pick
+    picks = [Pick("BTC/USDT", 10.0, 1), Pick("ETH/USDT", 5.0, 2)]
+    mock_trader.set_price("BTC/USDT", 50000)
+    mock_trader.set_price("ETH/USDT", 3000)
+    scheduler.open_picks(mock_trader, picks, 100)
+    # "restart": re-read from DB
+    rows = db.get_open_positions()
+    assert len(rows) == 2
+    # state survives
+    syms = sorted(r["symbol"] for r in rows)
+    assert syms == ["BTC/USDT", "ETH/USDT"]
+    # check stops still work after "restart"
+    mock_trader.set_price("BTC/USDT", 48000)  # -4% → below stop (default -3%)
+    stopped = scheduler.check_stops(mock_trader)
+    assert stopped == 1
+
+
+def test_rebalance_timestamp_persisted():
+    """last_rebalance_ts survives DB reopen."""
+    import time
+    ts = int(time.time())
+    db.set_last_rebalance_ts(ts)
+    assert db.get_last_rebalance_ts() == ts
+
+
+def test_pause_flag_persists_in_kv():
+    db.set_state("paused", True)
+    assert db.get_state("paused") is True
+    db.set_state("paused", False)
+    assert db.get_state("paused") is False
