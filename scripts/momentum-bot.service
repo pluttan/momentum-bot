@@ -1,0 +1,23 @@
+[Unit]
+Description=momentum-bot — binance spot monthly momentum
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/home/pluttan/pr/pets/momentum-bot
+EnvironmentFile=/home/pluttan/pr/pets/momentum-bot/.env
+ExecStart=/home/pluttan/pr/pets/momentum-bot/.venv/bin/python -m momentum.main
+Restart=always
+RestartSec=30
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=default.target
+
+# Install:
+#   cp scripts/momentum-bot.service ~/.config/systemd/user/
+#   systemctl --user daemon-reload
+#   systemctl --user enable --now momentum-bot.service
+#   journalctl --user -u momentum-bot -f
