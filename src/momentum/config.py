@@ -36,10 +36,16 @@ MIN_POSITIVE_RETURN = float(os.getenv("MIN_POSITIVE_RETURN", "0.0"))  # only buy
 # Variant selector:
 #   "classic" (default) — pick top TOP_N by past return
 #   "dual" — top TOP_N AND each must beat BTC return (more selective)
-#   "timeseries" — buy ALL positive-momentum assets equal-weight (max 13 positions)
-# Backtest 4y: classic +158%/−12.6%DD, dual +164%/−12.6%DD, timeseries +177%/−6.3%DD
+#   "timeseries" — buy ALL positive-momentum assets equal-weight (max N positions)
+# Backtest 4y:
+#   classic lb=14/h=60/N=3:              +158%/-12.6%DD
+#   dual lb=14/h=60/N=3:                  +164%/-12.6%DD
+#   timeseries lb=14/h=60/N=13:           +177%/-6.3%DD
+#   timeseries lb=14/h=90/N=8 (BEST RA):  +191%/-3.2%DD  🦊
 VARIANT = os.getenv("VARIANT", "classic").lower()
-TIMESERIES_MAX_N = int(os.getenv("TIMESERIES_MAX_N", "13"))
+TIMESERIES_MAX_N = int(os.getenv("TIMESERIES_MAX_N", "8"))
+# Note: для timeseries variant recommended defaults: LOOKBACK_DAYS=14, HOLD_DAYS=90
+# (override via env if switching mode)
 
 # === Universe ===
 # Top USDT-spot pairs с ≥4y history. Refresh quarterly via scripts/universe_refresh.py.
