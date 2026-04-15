@@ -41,15 +41,19 @@ MIN_POSITIVE_RETURN = float(os.getenv("MIN_POSITIVE_RETURN", "0.0"))
 #   "classic" (default) — pick top TOP_N by past return
 #   "dual" — top TOP_N AND each must beat BTC return
 #   "timeseries" — buy ALL positive-momentum assets equal-weight (max N)
-# HONEST 4y backtest с daily DD tracking (real intra-period drawdown):
-#   classic lb=14/h=60/N=3:        +158% annual, maxDD ~-55% (daily)
-#   timeseries lb=14/h=30/N=8:     +252% annual, maxDD -47% (best RA)
-#   timeseries lb=14/h=30/N=3:     +333% annual, maxDD -52% (highest return)
-#   timeseries lb=14/h=90/N=8:     +191% annual, maxDD -60%
-# All momentum configs имеют real daily maxDD в range -47 до -62%.
-# To deploy timeseries — raise MAX_DRAWDOWN_PCT to 0.6+ (default 0.30 will halt).
 VARIANT = os.getenv("VARIANT", "classic").lower()
 TIMESERIES_MAX_N = int(os.getenv("TIMESERIES_MAX_N", "8"))
+
+# Sizing selector (within selected variant):
+#   "equal" (default) — equal USDT per position
+#   "invvol" — weights = (1/vol) / sum(1/vol), underweight volatile assets
+#   "voltarget" — target daily portfolio vol (VOL_TARGET_DAILY), caps volatile assets
+# Backtest 4y hold=30 N=8:
+#   equal:     +150% annual, -36% maxDD
+#   voltarget: +130% annual, -29% maxDD  (35% DD reduction for -20pp return)
+SIZING = os.getenv("SIZING", "equal").lower()
+VOL_TARGET_DAILY = float(os.getenv("VOL_TARGET_DAILY", "0.02"))  # 2% daily σ target
+VOL_LOOKBACK_DAYS = int(os.getenv("VOL_LOOKBACK_DAYS", "30"))
 
 # === Universe ===
 # Top USDT-spot pairs с ≥4y history. Refresh quarterly via scripts/universe_refresh.py.

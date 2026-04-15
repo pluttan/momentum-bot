@@ -18,10 +18,12 @@ def fetch_lookback_panel(trader: Trader, symbols: list[str], lookback_days: int)
 
     Returns DataFrame with index=dates(UTC), columns=symbols, values=close prices.
     """
+    # fetch enough для vol calculation (max of lookback and vol lookback)
+    fetch_days = max(lookback_days, config.VOL_LOOKBACK_DAYS) + 5
     series = {}
     for sym in symbols:
         try:
-            ohlcv = trader.fetch_ohlcv(sym, "1d", limit=lookback_days + 5)
+            ohlcv = trader.fetch_ohlcv(sym, "1d", limit=fetch_days)
             if not ohlcv:
                 log.warning("no ohlcv", symbol=sym)
                 continue
@@ -34,6 +36,26 @@ def fetch_lookback_panel(trader: Trader, symbols: list[str], lookback_days: int)
         return pd.DataFrame()
     panel = pd.DataFrame(series).dropna(how="all")
     return panel
+
+
+def calc_vols(panel: pd.DataFrame, symbols: list[str], lookback_days: int) -> dict[str, float]:
+    """Compute daily return stdev для each symbol over lookback_days."""
+    vols = {}
+    if panel.empty:
+        return vols
+    asof = panel.index[-1]
+    start = asof - pd.Timedelta(days=lookback_days)
+    window = panel.loc[start:asof]
+    for sym in symbols:
+        if sym not in window.columns:
+            continue
+        p = window[sym].dropna()
+        if len(p) < 5:
+            continue
+        rets = p.pct_change().dropna()
+        if len(rets) > 0:
+            vols[sym] = float(rets.std())
+    return vols
 
 
 def db_pos_to_position(row: dict) -> Position:
@@ -64,7 +86,7 @@ def close_all_positions(trader: Trader, reason: str) -> float:
 
 
 def open_picks(trader: Trader, picks: list[Pick], capital_per_pos: float) -> int:
-    """Open positions for each pick. Returns count opened."""
+    """Open positions for each pick (equal-weight). Returns count opened."""
     opened = 0
     for pick in picks:
         try:
@@ -76,6 +98,31 @@ def open_picks(trader: Trader, picks: list[Pick], capital_per_pos: float) -> int
                 entry_price=order["filled_price"],
                 units=order["filled_units"],
                 capital_at_entry=capital_per_pos,
+                entry_ts=order["ts"],
+            )
+            opened += 1
+        except Exception as e:
+            log.error("open failed", symbol=pick.symbol, error=str(e))
+    return opened
+
+
+def open_picks_custom_sizing(trader: Trader, picks: list[Pick], sizes: dict[str, float]) -> int:
+    """Open positions с per-symbol USDT amounts (от vol/invvol sizing)."""
+    opened = 0
+    for pick in picks:
+        usdt = sizes.get(pick.symbol, 0)
+        if usdt < 10:  # binance min notional ~$10
+            log.warning("size below min notional, skip", symbol=pick.symbol, usdt=usdt)
+            continue
+        try:
+            order = trader.market_buy(pick.symbol, usdt)
+            db.log_trade(order["symbol"], order["side"], order["filled_units"],
+                         order["filled_price"], order["fee_usdt"], order["ts"])
+            db.add_position(
+                symbol=order["symbol"],
+                entry_price=order["filled_price"],
+                units=order["filled_units"],
+                capital_at_entry=usdt,
                 entry_ts=order["ts"],
             )
             opened += 1
@@ -154,10 +201,20 @@ def rebalance(trader: Trader) -> dict:
         log.warning("no positive momentum picks — staying в USDT")
         db.set_last_rebalance_ts(int(time.time()))
         return {"opened": 0, "skipped": "no positives"}
-    # open new positions
+    # open new positions с выбранным sizing
     capital = trader.get_balance_usdt()
-    per_pos = strategy.equal_weight_sizing(capital, len(top), trader.fee)
-    opened = open_picks(trader, top, per_pos)
+    if config.SIZING in ("invvol", "voltarget"):
+        vols = calc_vols(panel, [p.symbol for p in top], config.VOL_LOOKBACK_DAYS)
+        if config.SIZING == "voltarget":
+            sizes = strategy.vol_target_sizing(capital, vols,
+                                               target_daily_vol=config.VOL_TARGET_DAILY,
+                                               fee=trader.fee)
+        else:
+            sizes = strategy.inverse_vol_sizing(capital, vols, fee=trader.fee)
+        opened = open_picks_custom_sizing(trader, top, sizes)
+    else:
+        per_pos = strategy.equal_weight_sizing(capital, len(top), trader.fee)
+        opened = open_picks(trader, top, per_pos)
     db.set_last_rebalance_ts(int(time.time()))
     log.info("rebalance done", opened=opened, picks=[p.symbol for p in top])
     return {

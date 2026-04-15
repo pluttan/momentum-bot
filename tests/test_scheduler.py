@@ -106,3 +106,30 @@ def test_pause_flag_persists_in_kv():
     assert db.get_state("paused") is True
     db.set_state("paused", False)
     assert db.get_state("paused") is False
+
+
+def test_calc_vols_computes_stdev():
+    """Volatility calc returns daily stdev для each symbol."""
+    dates = pd.date_range("2025-01-01", periods=35, freq="D", tz="UTC")
+    # stable asset (low vol) vs volatile asset (high vol)
+    stable = [100 * (1 + 0.01 * (i % 2)) for i in range(35)]  # 1% oscillation
+    volatile = [100 * (1 + 0.10 * ((i % 2) - 0.5) * 2) for i in range(35)]  # ±10%
+    panel = pd.DataFrame({"STABLE": stable, "VOL": volatile}, index=dates)
+    vols = scheduler.calc_vols(panel, ["STABLE", "VOL"], 30)
+    assert "STABLE" in vols
+    assert "VOL" in vols
+    assert vols["VOL"] > vols["STABLE"]
+
+
+def test_open_picks_custom_sizing_skips_below_min_notional(mock_trader):
+    from momentum.strategy import Pick
+    picks = [Pick("BTC/USDT", 10.0, 1), Pick("ETH/USDT", 5.0, 2)]
+    mock_trader.set_price("BTC/USDT", 50000)
+    mock_trader.set_price("ETH/USDT", 3000)
+    # BTC big size, ETH below $10 min notional
+    sizes = {"BTC/USDT": 100.0, "ETH/USDT": 5.0}
+    opened = scheduler.open_picks_custom_sizing(mock_trader, picks, sizes)
+    assert opened == 1
+    rows = db.get_open_positions()
+    assert len(rows) == 1
+    assert rows[0]["symbol"] == "BTC/USDT"
