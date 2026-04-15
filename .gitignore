@@ -1,0 +1,37 @@
+# venv
+.venv/
+venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# data cache
+data/*/
+!data/.gitkeep
+
+# state
+*.db
+*.db-shm
+*.db-wal
+
+# logs
+logs/
+*.log
+trades.log
+
+# secrets
+.env
+.env.local
+
+# editor
+.vscode/
+.idea/
+*.swp
+
+# OS
+.DS_Store
+._*

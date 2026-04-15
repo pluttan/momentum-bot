@@ -1,0 +1,32 @@
+[project]
+name = "momentum-bot"
+version = "0.1.0"
+description = "binance spot momentum trading bot — buy top-N performers monthly"
+requires-python = ">=3.12"
+dependencies = [
+    "ccxt>=4.4",
+    "pandas>=2.2",
+    "numpy>=1.26",
+    "structlog>=24",
+    "python-dotenv>=1.0",
+    "tenacity>=9",
+    "requests>=2.32",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8",
+    "ruff>=0.6",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP"]
+ignore = ["E501"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
