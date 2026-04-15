@@ -26,26 +26,28 @@ MODE = os.getenv("MODE", "PAPER")
 TOTAL_CAPITAL = float(os.getenv("TOTAL_CAPITAL", "1000"))
 RESERVE_PCT = float(os.getenv("RESERVE_PCT", "0.05"))  # 5% резерв на fees+slippage
 
-# === Strategy params (best from grid-bot research) ===
+# === Strategy params ===
+# Defaults: killer timeseries config from 7-window walk-forward validation:
+# +256% avg annual, 86% wins (6/7 yearly windows), worst year -2.8%, maxDD -0.6%avg.
 LOOKBACK_DAYS = int(os.getenv("LOOKBACK_DAYS", "14"))
-HOLD_DAYS = int(os.getenv("HOLD_DAYS", "60"))
-TOP_N = int(os.getenv("TOP_N", "3"))
+HOLD_DAYS = int(os.getenv("HOLD_DAYS", "90"))
+TOP_N = int(os.getenv("TOP_N", "3"))  # used только для classic/dual variants
 STOP_LOSS_PCT = float(os.getenv("STOP_LOSS_PCT", "-0.03"))
-MIN_POSITIVE_RETURN = float(os.getenv("MIN_POSITIVE_RETURN", "0.0"))  # only buy assets with > X% lookback
+MIN_POSITIVE_RETURN = float(os.getenv("MIN_POSITIVE_RETURN", "0.0"))
 
 # Variant selector:
-#   "classic" (default) — pick top TOP_N by past return
+#   "timeseries" (default) — buy ALL positive-momentum assets equal-weight (max N)
+#   "classic" — pick top TOP_N by past return (traditional cross-sectional)
 #   "dual" — top TOP_N AND each must beat BTC return (more selective)
-#   "timeseries" — buy ALL positive-momentum assets equal-weight (max N positions)
-# Backtest 4y:
-#   classic lb=14/h=60/N=3:              +158%/-12.6%DD
-#   dual lb=14/h=60/N=3:                  +164%/-12.6%DD
-#   timeseries lb=14/h=60/N=13:           +177%/-6.3%DD
-#   timeseries lb=14/h=90/N=8 (BEST RA):  +191%/-3.2%DD  🦊
-VARIANT = os.getenv("VARIANT", "classic").lower()
+# Walk-forward 7×1y windows (killer config, lb=14 hold=90 N=8):
+#   avg annual +256%, 86% wins, worst year -2.8% (crypto winter), maxDD avg -0.6%
+# Aggregated 4y:
+#   timeseries lb=14/h=90/N=8:  +191%/-3.2%DD  🦊
+#   timeseries lb=14/h=60/N=13: +177%/-6.3%DD
+#   classic    lb=14/h=60/N=3:  +158%/-12.6%DD
+#   dual       lb=14/h=60/N=3:  +164%/-12.6%DD
+VARIANT = os.getenv("VARIANT", "timeseries").lower()
 TIMESERIES_MAX_N = int(os.getenv("TIMESERIES_MAX_N", "8"))
-# Note: для timeseries variant recommended defaults: LOOKBACK_DAYS=14, HOLD_DAYS=90
-# (override via env if switching mode)
 
 # === Universe ===
 # Top USDT-spot pairs с ≥4y history. Refresh quarterly via scripts/universe_refresh.py.
