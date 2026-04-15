@@ -27,26 +27,28 @@ TOTAL_CAPITAL = float(os.getenv("TOTAL_CAPITAL", "1000"))
 RESERVE_PCT = float(os.getenv("RESERVE_PCT", "0.05"))  # 5% резерв на fees+slippage
 
 # === Strategy params ===
-# Defaults: killer timeseries config from 7-window walk-forward validation:
-# +256% avg annual, 86% wins (6/7 yearly windows), worst year -2.8%, maxDD -0.6%avg.
+# Defaults: balanced classic (безопаснее для first deploy).
+# Real daily maxDD tracking reveals all momentum configs have ~-50% intra-period DD
+# (prior rebalance-only measurement was misleading +1800% error).
+# For switch в timeseries/hold=90 — raise MAX_DRAWDOWN_PCT to 0.6+.
 LOOKBACK_DAYS = int(os.getenv("LOOKBACK_DAYS", "14"))
-HOLD_DAYS = int(os.getenv("HOLD_DAYS", "90"))
-TOP_N = int(os.getenv("TOP_N", "3"))  # used только для classic/dual variants
+HOLD_DAYS = int(os.getenv("HOLD_DAYS", "60"))
+TOP_N = int(os.getenv("TOP_N", "3"))
 STOP_LOSS_PCT = float(os.getenv("STOP_LOSS_PCT", "-0.03"))
 MIN_POSITIVE_RETURN = float(os.getenv("MIN_POSITIVE_RETURN", "0.0"))
 
 # Variant selector:
-#   "timeseries" (default) — buy ALL positive-momentum assets equal-weight (max N)
-#   "classic" — pick top TOP_N by past return (traditional cross-sectional)
-#   "dual" — top TOP_N AND each must beat BTC return (more selective)
-# Walk-forward 7×1y windows (killer config, lb=14 hold=90 N=8):
-#   avg annual +256%, 86% wins, worst year -2.8% (crypto winter), maxDD avg -0.6%
-# Aggregated 4y:
-#   timeseries lb=14/h=90/N=8:  +191%/-3.2%DD  🦊
-#   timeseries lb=14/h=60/N=13: +177%/-6.3%DD
-#   classic    lb=14/h=60/N=3:  +158%/-12.6%DD
-#   dual       lb=14/h=60/N=3:  +164%/-12.6%DD
-VARIANT = os.getenv("VARIANT", "timeseries").lower()
+#   "classic" (default) — pick top TOP_N by past return
+#   "dual" — top TOP_N AND each must beat BTC return
+#   "timeseries" — buy ALL positive-momentum assets equal-weight (max N)
+# HONEST 4y backtest с daily DD tracking (real intra-period drawdown):
+#   classic lb=14/h=60/N=3:        +158% annual, maxDD ~-55% (daily)
+#   timeseries lb=14/h=30/N=8:     +252% annual, maxDD -47% (best RA)
+#   timeseries lb=14/h=30/N=3:     +333% annual, maxDD -52% (highest return)
+#   timeseries lb=14/h=90/N=8:     +191% annual, maxDD -60%
+# All momentum configs имеют real daily maxDD в range -47 до -62%.
+# To deploy timeseries — raise MAX_DRAWDOWN_PCT to 0.6+ (default 0.30 will halt).
+VARIANT = os.getenv("VARIANT", "classic").lower()
 TIMESERIES_MAX_N = int(os.getenv("TIMESERIES_MAX_N", "8"))
 
 # === Universe ===
