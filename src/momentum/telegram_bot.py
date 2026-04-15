@@ -93,6 +93,58 @@ def is_owner(user_id: int) -> bool:
     return str(user_id) == str(config.TELEGRAM_OWNER_ID)
 
 
+def fmt_params() -> str:
+    """Current config snapshot."""
+    lines = [
+        "*current config*",
+        f"MODE: `{config.MODE}`",
+        f"capital: ${config.TOTAL_CAPITAL:.0f}",
+        f"variant: `{config.VARIANT}` sizing: `{config.SIZING}`",
+        f"lookback: {config.LOOKBACK_DAYS}d  hold: {config.HOLD_DAYS}d",
+        f"top_N: {config.TOP_N}  timeseries_max: {config.TIMESERIES_MAX_N}",
+        f"stop: {config.STOP_LOSS_PCT*100:.1f}%",
+        f"max DD halt: {config.MAX_DRAWDOWN_PCT*100:.0f}%",
+        f"daily loss cap: ${config.MAX_DAILY_LOSS_USD:.0f}",
+        f"fee: {config.effective_fee()*100:.3f}% (BNB discount: {config.USE_BNB_DISCOUNT})",
+        f"universe: {len(config.UNIVERSE)} pairs",
+    ]
+    return "\n".join(lines)
+
+
+def reload_env() -> str:
+    """Re-read .env и config module. Returns summary."""
+    import importlib
+
+    from dotenv import load_dotenv
+    env_path = config.PROJECT_ROOT / ".env"
+    load_dotenv(env_path, override=True)
+    importlib.reload(config)
+    return fmt_params()
+
+
+def fmt_top(limit: int = 10) -> str:
+    """Preview current universe ranking (без trading)."""
+    from . import scheduler, strategy
+    from .trader import Trader
+    try:
+        trader = Trader()
+        panel = scheduler.fetch_lookback_panel(trader, config.UNIVERSE, config.LOOKBACK_DAYS)
+        if panel.empty:
+            return "no data"
+        asof = panel.index[-1]
+        picks = strategy.rank_universe(panel, asof, config.LOOKBACK_DAYS,
+                                       config.MIN_POSITIVE_RETURN)
+        if not picks:
+            return f"no positive-momentum assets at {asof.date()} — stay USDT"
+        lines = [f"*ranking at {asof.date()}* (top {limit})"]
+        for p in picks[:limit]:
+            marker = "★" if p.rank <= config.TOP_N else " "
+            lines.append(f"{p.rank:>2}{marker} `{p.symbol:<14}` {p.lookback_return_pct:>+7.2f}%")
+        return "\n".join(lines)
+    except Exception as e:
+        return f"top error: {e}"
+
+
 def handle_command(text: str, user_id: int) -> str | None:
     """Process command. Returns reply text or None if not a command."""
     text = text.strip()
@@ -110,6 +162,15 @@ def handle_command(text: str, user_id: int) -> str | None:
         return fmt_pnl()
     if cmd == "/history":
         return fmt_history()
+    if cmd == "/params":
+        return fmt_params()
+    if cmd == "/reload":
+        try:
+            return "reloaded:\n" + reload_env()
+        except Exception as e:
+            return f"reload error: {e}"
+    if cmd == "/top":
+        return fmt_top()
     if cmd == "/pause":
         db.set_state("paused", True)
         return "paused — не будет открывать new positions"
@@ -120,7 +181,8 @@ def handle_command(text: str, user_id: int) -> str | None:
         db.set_state("emergency_stop", True)
         return "emergency_stop set — bot прекратит работу при next iteration"
     if cmd == "/help":
-        return "/status /positions /pnl /history /pause /resume /stop"
+        return ("/status /positions /pnl /history /params /top\n"
+                "/pause /resume /stop /reload")
     return f"unknown command: {cmd}"
 
 
