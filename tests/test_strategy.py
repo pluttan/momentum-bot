@@ -129,3 +129,31 @@ def test_select_dual_momentum_no_btc_filter_when_none():
     # btc_return_pct=None → no absolute filter
     result = st.select_dual_momentum(picks, n=2, btc_return_pct=None)
     assert len(result) == 2
+
+
+def test_inverse_vol_sizing_underweights_volatile():
+    """Less volatile asset gets larger allocation."""
+    capital = 1000
+    vols = {"BTC": 0.02, "PEPE": 0.08}  # PEPE 4× volatile
+    sizes = st.inverse_vol_sizing(capital, vols, fee=0)
+    # BTC inv=50, PEPE inv=12.5, total=62.5 → BTC 80%, PEPE 20%
+    assert sizes["BTC"] > sizes["PEPE"]
+    assert sizes["BTC"] + sizes["PEPE"] == pytest.approx(capital, rel=0.01)
+    assert sizes["BTC"] / sizes["PEPE"] == pytest.approx(4.0, rel=0.1)
+
+
+def test_inverse_vol_sizing_empty():
+    assert st.inverse_vol_sizing(1000, {}) == {}
+
+
+def test_vol_target_sizing_caps_volatile():
+    capital = 1000
+    vols = {"BTC": 0.01, "PEPE": 0.10}  # PEPE 10× volatile
+    # target 2% daily vol
+    sizes = st.vol_target_sizing(capital, vols, target_daily_vol=0.02, fee=0)
+    # BTC: 0.02/0.01 = 2.0 → capped at 1.0 (full allocation)
+    # PEPE: 0.02/0.10 = 0.2 (small)
+    # after normalize: BTC gets larger share
+    assert sizes["BTC"] > sizes["PEPE"]
+    # total ≤ capital
+    assert sum(sizes.values()) <= capital * 1.01
