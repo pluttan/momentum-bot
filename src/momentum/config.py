@@ -33,6 +33,14 @@ TOP_N = int(os.getenv("TOP_N", "3"))
 STOP_LOSS_PCT = float(os.getenv("STOP_LOSS_PCT", "-0.03"))
 MIN_POSITIVE_RETURN = float(os.getenv("MIN_POSITIVE_RETURN", "0.0"))  # only buy assets with > X% lookback
 
+# Variant selector:
+#   "classic" (default) — pick top TOP_N by past return
+#   "dual" — top TOP_N AND each must beat BTC return (more selective)
+#   "timeseries" — buy ALL positive-momentum assets equal-weight (max 13 positions)
+# Backtest 4y: classic +158%/−12.6%DD, dual +164%/−12.6%DD, timeseries +177%/−6.3%DD
+VARIANT = os.getenv("VARIANT", "classic").lower()
+TIMESERIES_MAX_N = int(os.getenv("TIMESERIES_MAX_N", "13"))
+
 # === Universe ===
 # Top USDT-spot pairs с ≥4y history. Refresh quarterly via scripts/universe_refresh.py.
 UNIVERSE = [

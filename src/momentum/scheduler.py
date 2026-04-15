@@ -140,7 +140,16 @@ def rebalance(trader: Trader) -> dict:
     # rank
     picks = strategy.rank_universe(panel, asof, config.LOOKBACK_DAYS,
                                     config.MIN_POSITIVE_RETURN)
-    top = strategy.select_top_n(picks, config.TOP_N)
+    # apply variant
+    if config.VARIANT == "timeseries":
+        top = strategy.select_all_positive(picks, config.TIMESERIES_MAX_N)
+    elif config.VARIANT == "dual":
+        # find BTC return для absolute filter
+        btc_pick = next((p for p in picks if p.symbol == "BTC/USDT"), None)
+        btc_ret = btc_pick.lookback_return_pct if btc_pick else 0
+        top = strategy.select_dual_momentum(picks, config.TOP_N, btc_ret)
+    else:
+        top = strategy.select_top_n(picks, config.TOP_N)
     if not top:
         log.warning("no positive momentum picks — staying в USDT")
         db.set_last_rebalance_ts(int(time.time()))

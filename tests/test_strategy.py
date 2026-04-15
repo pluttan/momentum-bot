@@ -98,3 +98,34 @@ def test_estimate_position_value_sums():
     ]
     prices = {"A": 110, "B": 55}
     assert st.estimate_position_value(positions, prices) == 1100 + 1100
+
+
+def test_select_all_positive_caps_max_n():
+    picks = [Pick(f"P{i}", 10.0 - i * 0.5, i + 1) for i in range(15)]
+    result = st.select_all_positive(picks, max_n=8)
+    assert len(result) == 8
+    # without cap → all 15
+    assert len(st.select_all_positive(picks, max_n=20)) == 15
+
+
+def test_select_dual_momentum_filters_below_btc():
+    picks = [
+        Pick("PEPE/USDT", 50.0, 1),
+        Pick("BTC/USDT", 10.0, 2),
+        Pick("ZEC/USDT", 5.0, 3),     # below BTC's 10%
+        Pick("DOGE/USDT", 15.0, 4),
+    ]
+    # дoUAL: only assets > BTC's 10%
+    result = st.select_dual_momentum(picks, n=10, btc_return_pct=10.0)
+    syms = [p.symbol for p in result]
+    assert "PEPE/USDT" in syms      # 50 > 10
+    assert "DOGE/USDT" in syms      # 15 > 10
+    assert "ZEC/USDT" not in syms   # 5 < 10
+    assert "BTC/USDT" not in syms   # 10 not > 10
+
+
+def test_select_dual_momentum_no_btc_filter_when_none():
+    picks = [Pick("X", 5.0, 1), Pick("Y", 3.0, 2)]
+    # btc_return_pct=None → no absolute filter
+    result = st.select_dual_momentum(picks, n=2, btc_return_pct=None)
+    assert len(result) == 2
