@@ -67,12 +67,17 @@ def fetch_to_panel():
 
 
 def run_backtest(prices: pd.DataFrame) -> dict:
+    """Run backtest. IMPORTANT: tracks equity daily within hold periods (honest maxDD).
+
+    Prior bug: measuring eq only at rebalance points hid ~50% intra-period drawdowns.
+    """
     capital = 1000.0
     positions = {}  # {sym: (entry_price, units)}
     trades = []
     cur = pd.Timestamp(START, tz="UTC")
     end = pd.Timestamp(END, tz="UTC")
-    peak = capital; dd_min = 0.0
+    daily_eq = {}  # daily equity marks (for honest DD)
+
     while cur < end:
         nxt = min(cur + timedelta(days=HOLD), end)
         # close existing
@@ -106,12 +111,14 @@ def run_backtest(prices: pd.DataFrame) -> dict:
             units = (per_pos * (1 - FEE)) / entry
             positions[sym] = (entry, units)
             capital -= per_pos
-        # mark-to-market peak/dd
-        eq = capital + sum(u * prices.loc[cur, s] for s, (_, u) in positions.items()
-                           if not pd.isna(prices.loc[cur, s]))
-        peak = max(peak, eq)
-        if peak > 0:
-            dd_min = min(dd_min, (eq - peak) / peak * 100)
+        # track equity daily within hold period
+        for day in pd.date_range(cur, nxt, freq="D"):
+            if day > end: break
+            val = capital
+            for sym, (_e, u) in positions.items():
+                p = prices.loc[:day, sym].dropna()
+                if not p.empty: val += u * p.iloc[-1]
+            daily_eq[day] = val
         cur = nxt
 
     if positions:
@@ -123,6 +130,12 @@ def run_backtest(prices: pd.DataFrame) -> dict:
     years = (END - START).days / 365
     ann = ((capital / 1000) ** (1/years) - 1) * 100 if capital > 0 else -100
     wins = sum(1 for t in trades if t > 0)
+    eq_series = pd.Series(daily_eq)
+    if len(eq_series) > 0:
+        peak = eq_series.cummax()
+        dd_min = ((eq_series - peak) / peak * 100).min()
+    else:
+        dd_min = 0.0
     return {
         "final": capital, "annual_pct": ann, "max_dd": dd_min,
         "trades": len(trades), "wins": wins,

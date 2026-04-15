@@ -57,12 +57,13 @@ def load_panel():
 
 
 def run(prices, variant: str):
+    """HONEST: tracks equity daily within hold period (not only at rebalance)."""
     capital = 1000.0
     positions = {}
     trades = []
     cur = pd.Timestamp(START, tz="UTC")
     end = pd.Timestamp(END, tz="UTC")
-    peak = capital; dd_min = 0.0
+    daily_eq = {}
     while cur < end:
         nxt = min(cur + timedelta(days=HOLD), end)
         if positions:
@@ -82,11 +83,9 @@ def run(prices, variant: str):
         if variant == "classic":
             picks = rets[rets > 0].nlargest(TOP_N)
         elif variant == "dual":
-            # only assets с return > BTC return
             btc_ret = rets.get("BTC/USDT", 0.0)
             picks = rets[(rets > 0) & (rets > btc_ret)].nlargest(TOP_N)
         elif variant == "timeseries":
-            # buy ALL assets с positive return (no rank, equal weight)
             picks = rets[rets > 0]
         else:
             picks = pd.Series(dtype=float)
@@ -101,11 +100,14 @@ def run(prices, variant: str):
             units = (per_pos * (1 - FEE)) / entry
             positions[sym] = (entry, units)
             capital -= per_pos
-        eq = capital + sum(u * prices.loc[cur, s] for s, (_, u) in positions.items()
-                           if not pd.isna(prices.loc[cur, s]))
-        peak = max(peak, eq)
-        if peak > 0:
-            dd_min = min(dd_min, (eq - peak) / peak * 100)
+        # daily equity tracking within hold period
+        for day in pd.date_range(cur, nxt, freq="D"):
+            if day > end: break
+            val = capital
+            for sym, (_e, u) in positions.items():
+                p = prices.loc[:day, sym].dropna()
+                if not p.empty: val += u * p.iloc[-1]
+            daily_eq[day] = val
         cur = nxt
 
     if positions:
@@ -116,6 +118,8 @@ def run(prices, variant: str):
     years = (END - START).days / 365
     ann = ((capital / 1000) ** (1/years) - 1) * 100 if capital > 0 else -100
     wins = sum(1 for t in trades if t > 0)
+    eq = pd.Series(daily_eq)
+    dd_min = ((eq - eq.cummax()) / eq.cummax() * 100).min() if len(eq) > 0 else 0.0
     return {
         "final": capital, "annual": ann, "maxDD": dd_min,
         "trades": len(trades), "wins": wins,
