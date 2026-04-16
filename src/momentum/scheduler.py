@@ -111,6 +111,11 @@ def open_picks_custom_sizing(trader: Trader, picks: list[Pick], sizes: dict[str,
     opened = 0
     for pick in picks:
         usdt = sizes.get(pick.symbol, 0)
+        # cap at MAX_POSITION_USD
+        if usdt > config.MAX_POSITION_USD:
+            log.info("cap position at max", symbol=pick.symbol,
+                     requested=usdt, capped=config.MAX_POSITION_USD)
+            usdt = config.MAX_POSITION_USD
         if usdt < 10:  # binance min notional ~$10
             log.warning("size below min notional, skip", symbol=pick.symbol, usdt=usdt)
             continue
@@ -214,13 +219,23 @@ def rebalance(trader: Trader) -> dict:
         opened = open_picks_custom_sizing(trader, top, sizes)
     else:
         per_pos = strategy.equal_weight_sizing(capital, len(top), trader.fee)
+        per_pos = min(per_pos, config.MAX_POSITION_USD)
         opened = open_picks(trader, top, per_pos)
     db.set_last_rebalance_ts(int(time.time()))
     log.info("rebalance done", opened=opened, picks=[p.symbol for p in top])
+    pick_details = [{"symbol": p.symbol, "lookback_pct": p.lookback_return_pct} for p in top]
+    # telegram trade summary
+    from . import telegram_bot
+    lines = [f"rebalance: {opened} positions opened"]
+    for p in top:
+        sz_info = f"${per_pos:.0f}" if config.SIZING == "equal" else ""
+        lines.append(f"  {p.symbol} ({p.lookback_return_pct:+.1f}% {config.LOOKBACK_DAYS}d) {sz_info}")
+    lines.append(f"capital after: ${trader.get_balance_usdt():.2f} USDT free")
+    telegram_bot.send("\n".join(lines))
+
     return {
         "opened": opened,
-        "picks": [{"symbol": p.symbol, "lookback_pct": p.lookback_return_pct} for p in top],
-        "per_position_usdt": per_pos,
+        "picks": pick_details,
     }
 
 
