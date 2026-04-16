@@ -56,11 +56,17 @@ VOL_TARGET_DAILY = float(os.getenv("VOL_TARGET_DAILY", "0.02"))  # 2% daily σ t
 VOL_LOOKBACK_DAYS = int(os.getenv("VOL_LOOKBACK_DAYS", "30"))
 
 # === Universe ===
-# Top USDT-spot pairs с ≥4y history. Refresh quarterly via scripts/universe_refresh.py.
+# Top USDT-spot pairs. Refreshed via scripts/universe_refresh.py.
+# Current list: 13 legacy (backtest basis) + 9 added 2026-04 (≥4y spot history).
 UNIVERSE = [
+    # legacy 4y backtest basis:
     "BTC/USDT", "ETH/USDT", "SOL/USDT", "BNB/USDT", "XRP/USDT",
-    "DOGE/USDT", "ADA/USDT", "TRX/USDT", "ZEC/USDT", "DASH/USDT",
-    "TAO/USDT", "PAXG/USDT", "PEPE/USDT",
+    "DOGE/USDT", "ADA/USDT", "TRX/USDT", "ZEC/USDT", "PAXG/USDT",
+    "DASH/USDT", "TAO/USDT", "PEPE/USDT",
+    # added 2026-04 via universe_refresh (high volume + ≥4y spot listed):
+    "LINK/USDT", "AAVE/USDT", "AVAX/USDT", "NEAR/USDT", "LTC/USDT",
+    "CHZ/USDT", "FET/USDT", "ENJ/USDT",
+    # EUR/USDT omitted — stable-ish, volatility too low для momentum picking
 ]
 MIN_VOLUME_24H = float(os.getenv("MIN_VOLUME_24H", "10000000"))  # $10M min daily volume
 
