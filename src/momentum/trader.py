@@ -124,10 +124,16 @@ class Trader:
             "fee_usdt": fee_usdt, "ts": int(time.time()),
         }
 
+    @retry(retry=retry_if_exception_type(ccxt.NetworkError),
+           stop=stop_after_attempt(3),
+           wait=wait_exponential(multiplier=1, min=2, max=10))
+    def _fetch_balance(self):
+        return self.ex.fetch_balance()
+
     def get_balance_usdt(self) -> float:
         if self.mode == "LIVE":
             try:
-                bal = self.ex.fetch_balance()
+                bal = self._fetch_balance()
                 return float(bal.get("USDT", {}).get("free", 0))
             except Exception as e:
                 log.warning("fetch_balance failed", error=str(e))
@@ -137,7 +143,7 @@ class Trader:
     def get_balance(self, asset: str) -> float:
         if self.mode == "LIVE":
             try:
-                bal = self.ex.fetch_balance()
+                bal = self._fetch_balance()
                 return float(bal.get(asset, {}).get("free", 0))
             except Exception as e:
                 log.warning("fetch_balance failed", error=str(e))
