@@ -63,13 +63,13 @@ def test_position_pnl():
     assert pos.pnl_usd(110) == 100
 
 
-def test_should_stop_at_3pct_loss():
+def test_should_stop_at_default_loss():
     pos = Position("BTC", entry_price=100, units=1, entry_ts=pd.Timestamp.now(tz="UTC"),
                    capital_at_entry=100)
-    # default STOP_LOSS_PCT = -0.03
-    assert pos.stop_price == pytest.approx(97.0)
-    assert st.should_stop(pos, current_price=96.99)
-    assert not st.should_stop(pos, current_price=97.01)
+    # default STOP_LOSS_PCT = -0.20 (audit 2026-07: -3% killed every paper position)
+    assert pos.stop_price == pytest.approx(80.0)
+    assert st.should_stop(pos, current_price=79.99)
+    assert not st.should_stop(pos, current_price=80.01)
     assert not st.should_stop(pos, current_price=110)
 
 

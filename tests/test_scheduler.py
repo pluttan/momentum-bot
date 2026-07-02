@@ -30,17 +30,17 @@ def test_close_all_zeroes_open(mock_trader):
     assert closed[0]["close_reason"] == "test"
 
 
-def test_check_stops_triggers_at_3pct(mock_trader):
+def test_check_stops_triggers_at_default(mock_trader):
     from momentum.strategy import Pick
     picks = [Pick("BTC/USDT", 10.0, 1)]
     mock_trader.set_price("BTC/USDT", 100.0)
     scheduler.open_picks(mock_trader, picks, 100)
-    # price holds — no stop
-    mock_trader.set_price("BTC/USDT", 99.0)
+    # small drawdown — no stop (default -20%, checked on daily close)
+    mock_trader.set_price("BTC/USDT", 90.0)
     assert scheduler.check_stops(mock_trader) == 0
     assert len(db.get_open_positions()) == 1
-    # price drops -3.5% — stop triggers
-    mock_trader.set_price("BTC/USDT", 96.0)
+    # close below -20% — stop triggers
+    mock_trader.set_price("BTC/USDT", 79.0)
     assert scheduler.check_stops(mock_trader) == 1
     assert len(db.get_open_positions()) == 0
     closed = db.get_closed_positions()
@@ -88,7 +88,7 @@ def test_state_recovery_open_positions_survive_db_close(mock_trader):
     syms = sorted(r["symbol"] for r in rows)
     assert syms == ["BTC/USDT", "ETH/USDT"]
     # check stops still work after "restart"
-    mock_trader.set_price("BTC/USDT", 48000)  # -4% → below stop (default -3%)
+    mock_trader.set_price("BTC/USDT", 39000)  # -22% → below default -20% stop
     stopped = scheduler.check_stops(mock_trader)
     assert stopped == 1
 

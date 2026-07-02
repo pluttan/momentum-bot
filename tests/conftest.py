@@ -38,10 +38,16 @@ def mock_trader():
             return self._prices.get(sym, 100.0)
 
         def fetch_ohlcv(self, sym, tf="1d", limit=20):
-            # synthetic: linearly increasing prices
+            # synthetic: flat 100.0 bars; if a test set_price'd the symbol, the two
+            # last bars close at that price so STOP_CHECK_MODE=close sees it
             base = 100.0
-            return [[i * 86400 * 1000, base, base * 1.01, base * 0.99, base * 1.005, 1000]
+            bars = [[i * 86400 * 1000, base, base * 1.01, base * 0.99, base * 1.005, 1000]
                     for i in range(limit)]
+            if sym in self._prices and limit >= 2:
+                p = self._prices[sym]
+                bars[-1][4] = p
+                bars[-2][4] = p
+            return bars
 
         def market_buy(self, sym, usdt):
             price = self.get_price(sym)
