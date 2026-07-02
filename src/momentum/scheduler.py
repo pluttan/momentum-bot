@@ -253,6 +253,43 @@ def rebalance(trader: Trader) -> dict:
     }
 
 
+def send_daily_report(trader: Trader):
+    """Полуденная сводка в telegram: что держим, unrealized PnL, активность за сутки."""
+    from . import telegram_bot
+    now = pd.Timestamp.now(tz="UTC")
+    rows = db.get_open_positions()
+    lines = [f"🦊 daily [{config.MODE}] {now:%Y-%m-%d}"]
+    pos_val = 0.0
+    if rows:
+        lines.append("держим:")
+        for r in rows:
+            price = trader.get_price(r["symbol"]) or r["entry_price"]
+            val = r["units"] * price
+            pos_val += val
+            pnl = (price / r["entry_price"] - 1) * 100
+            entry_d = pd.Timestamp(r["entry_ts"], unit="s", tz="UTC")
+            lines.append(f"  {r['symbol']} {pnl:+.1f}%"
+                         f" (${r['capital_at_entry']:.0f} → ${val:.0f}) с {entry_d:%d.%m}")
+    else:
+        lines.append("позиций нет — сидим в USDT (нет положительного momentum)")
+    usdt = trader.get_balance_usdt()
+    lines.append(f"equity: ${usdt + pos_val:.2f} (USDT ${usdt:.2f} + позиции ${pos_val:.2f})")
+    realized, fees = db.get_realized_pnl(), db.get_total_fees()
+    lines.append(f"realized: ${realized:+.2f} | fees: ${fees:.2f}")
+    day_ago = time.time() - 86400
+    closed_24h = [r for r in db.get_closed_positions(limit=30)
+                  if r.get("closed_ts") and r["closed_ts"] >= day_ago]
+    if closed_24h:
+        lines.append("закрыто за 24ч:")
+        for r in closed_24h:
+            lines.append(f"  {r['symbol']} {r['pnl_pct']:+.1f}% [{r['close_reason']}]")
+    last_rb = db.get_last_rebalance_ts()
+    if last_rb:
+        lines.append(f"последний ребаланс: {pd.Timestamp(last_rb, unit='s', tz='UTC'):%d.%m}"
+                     f" (день ребаланса: {config.REBALANCE_DAY_OF_MONTH}-е число)")
+    telegram_bot.send("\n".join(lines))
+
+
 def run_once(trader: Trader) -> dict:
     """One iteration of main loop. Returns status dict."""
     # emergency check
@@ -275,6 +312,16 @@ def run_once(trader: Trader) -> dict:
             except Exception as e:
                 log.error("sentinel error", error=str(e))
             db.set_state("last_sentinel_ts", now_ts)
+
+    # daily report at DAILY_REPORT_HOUR UTC (9 UTC = 12:00 MSK)
+    now_utc = pd.Timestamp.now(tz="UTC")
+    today = str(now_utc.date())
+    if now_utc.hour >= config.DAILY_REPORT_HOUR and db.get_state("last_daily_report") != today:
+        try:
+            send_daily_report(trader)
+        except Exception as e:
+            log.error("daily report error", error=str(e))
+        db.set_state("last_daily_report", today)
 
     # update equity
     eq = update_equity(trader)
