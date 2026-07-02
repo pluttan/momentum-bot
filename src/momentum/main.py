@@ -34,6 +34,7 @@ def main():
              stop_pct=config.STOP_LOSS_PCT)
 
     trader = Trader()
+    telegram_bot.TRADER = trader   # /report needs live prices
 
     def shutdown(*_):
         log.info("shutdown signal received")

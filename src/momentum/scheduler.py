@@ -253,9 +253,9 @@ def rebalance(trader: Trader) -> dict:
     }
 
 
-def send_daily_report(trader: Trader):
-    """Полуденная сводка в telegram: что держим, unrealized PnL, активность за сутки."""
-    from . import telegram_bot
+def build_daily_report(trader: Trader) -> str:
+    """Сводка: что держим, unrealized PnL, активность за сутки.
+    Используется ежедневным отчётом и командой /report."""
     now = pd.Timestamp.now(tz="UTC")
     rows = db.get_open_positions()
     lines = [f"🦊 daily [{config.MODE}] {now:%Y-%m-%d}"]
@@ -287,7 +287,12 @@ def send_daily_report(trader: Trader):
     if last_rb:
         lines.append(f"последний ребаланс: {pd.Timestamp(last_rb, unit='s', tz='UTC'):%d.%m}"
                      f" (день ребаланса: {config.REBALANCE_DAY_OF_MONTH}-е число)")
-    telegram_bot.send("\n".join(lines))
+    return "\n".join(lines)
+
+
+def send_daily_report(trader: Trader):
+    from . import telegram_bot
+    telegram_bot.send(build_daily_report(trader))
 
 
 def run_once(trader: Trader) -> dict:

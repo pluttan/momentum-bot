@@ -10,6 +10,7 @@ log = structlog.get_logger()
 
 API = "https://api.telegram.org/bot{token}/{method}"
 _offset = 0
+TRADER = None   # set by main() — /report needs live prices
 
 # api.telegram.org may be DPI-mangled on RU hosts — route via TELEGRAM_PROXY if set
 _PROXIES = ({"https": config.TELEGRAM_PROXY, "http": config.TELEGRAM_PROXY}
@@ -163,6 +164,14 @@ def handle_command(text: str, user_id: int) -> str | None:
         return "не для тебя :3"
 
     cmd = text.split()[0].lower()
+    if cmd in ("/report", "/daily", "/start"):
+        if TRADER is None:
+            return "trader ещё не инициализирован, попробуй через минуту"
+        from . import scheduler
+        try:
+            return scheduler.build_daily_report(TRADER)
+        except Exception as e:
+            return f"report error: {e}"
     if cmd == "/status":
         return fmt_status()
     if cmd == "/positions":
@@ -190,7 +199,8 @@ def handle_command(text: str, user_id: int) -> str | None:
         db.set_state("emergency_stop", True)
         return "emergency_stop set — bot прекратит работу при next iteration"
     if cmd == "/help":
-        return ("/status /positions /pnl /history /params /top\n"
+        return ("/report — текущая сводка (то же, что ежедневная)\n"
+                "/status /positions /pnl /history /params /top\n"
                 "/pause /resume /stop /reload")
     return f"unknown command: {cmd}"
 
