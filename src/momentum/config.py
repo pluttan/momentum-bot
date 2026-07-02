@@ -15,6 +15,7 @@ BINANCE_API_SECRET = os.getenv("BINANCE_API_SECRET")
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
 TELEGRAM_OWNER_ID = os.getenv("TELEGRAM_OWNER_ID")
+TELEGRAM_PROXY = os.getenv("TELEGRAM_PROXY")  # e.g. socks5h://127.0.0.1:2080 on DPI-mangled hosts
 
 # === Mode ===
 # SCAN_ONLY — показать ranking + picks, не торговать

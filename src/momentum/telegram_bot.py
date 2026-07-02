@@ -11,13 +11,17 @@ log = structlog.get_logger()
 API = "https://api.telegram.org/bot{token}/{method}"
 _offset = 0
 
+# api.telegram.org may be DPI-mangled on RU hosts — route via TELEGRAM_PROXY if set
+_PROXIES = ({"https": config.TELEGRAM_PROXY, "http": config.TELEGRAM_PROXY}
+            if config.TELEGRAM_PROXY else None)
+
 
 def _post(method: str, **kwargs) -> dict | None:
     if not config.TELEGRAM_BOT_TOKEN:
         return None
     try:
         r = requests.post(API.format(token=config.TELEGRAM_BOT_TOKEN, method=method),
-                          json=kwargs, timeout=30)
+                          json=kwargs, timeout=30, proxies=_PROXIES)
         return r.json()
     except Exception as e:
         log.warning("telegram post failed", method=method, error=str(e))
@@ -195,7 +199,7 @@ def poll_commands(timeout: int = 25):
         r = requests.get(
             API.format(token=config.TELEGRAM_BOT_TOKEN, method="getUpdates"),
             params={"offset": _offset, "timeout": timeout},
-            timeout=timeout + 5,
+            timeout=timeout + 5, proxies=_PROXIES,
         )
         data = r.json()
         for upd in data.get("result", []):
