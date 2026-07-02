@@ -86,8 +86,11 @@ def run_backtest(prices: pd.DataFrame) -> dict:
                 w = prices.loc[cur:nxt, sym].dropna()
                 if w.empty: continue
                 stop_price = entry * (1 + STOP)
-                if (w <= stop_price).any():
-                    exit_p = stop_price
+                hit = w[w <= stop_price]
+                if len(hit):
+                    # Audit fix: exit at the CLOSE of the breach day, not at stop_price.
+                    # Old code turned -15% gap days into neat -3% exits (2x inflation).
+                    exit_p = hit.iloc[0]
                 else:
                     exit_p = w.iloc[-1]
                 capital += units * exit_p * (1 - FEE)
@@ -106,6 +109,10 @@ def run_backtest(prices: pd.DataFrame) -> dict:
         per_pos = capital / len(top)
         for sym in top.index:
             p = prices.loc[cur:, sym].dropna()
+            # Audit fix: enter at the NEXT day's price — the signal-day close is
+            # part of the ranking itself and not tradeable after the fact.
+            if len(p) > 1:
+                p = p.iloc[1:]
             if p.empty: continue
             entry = p.iloc[0]
             units = (per_pos * (1 - FEE)) / entry

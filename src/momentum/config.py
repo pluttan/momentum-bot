@@ -34,8 +34,25 @@ RESERVE_PCT = float(os.getenv("RESERVE_PCT", "0.05"))  # 5% резерв на fe
 LOOKBACK_DAYS = int(os.getenv("LOOKBACK_DAYS", "14"))
 HOLD_DAYS = int(os.getenv("HOLD_DAYS", "60"))
 TOP_N = int(os.getenv("TOP_N", "3"))
-STOP_LOSS_PCT = float(os.getenv("STOP_LOSS_PCT", "-0.03"))
+# Audit 2026-07: tick-checked -3% stop killed 56/56 paper positions in <24h
+# (median hold 0.6h vs 60d plan). Backtest sweep: no stop beats -3%; -20% is
+# catastrophe insurance only. Checked on daily CLOSE (see STOP_CHECK_MODE).
+STOP_LOSS_PCT = float(os.getenv("STOP_LOSS_PCT", "-0.20"))
+# close — trigger on last CLOSED daily bar (matches backtest); tick — legacy behaviour
+STOP_CHECK_MODE = os.getenv("STOP_CHECK_MODE", "close").lower()
 MIN_POSITIVE_RETURN = float(os.getenv("MIN_POSITIVE_RETURN", "0.0"))
+
+# === Sentinel (DeepSeek negative-news watchdog) ===
+# LLM has veto/exit power only — never generates entries (cross-market OOS finding:
+# negative news kills a coin everywhere; positive news is sell-the-news).
+SENTINEL_ENABLED = os.getenv("SENTINEL_ENABLED", "true").lower() == "true"
+DEEPSEEK_API_KEY = os.getenv("DEEPSEEK_API_KEY")
+DEEPSEEK_MODEL = os.getenv("DEEPSEEK_MODEL", "deepseek-chat")
+SENTINEL_INTERVAL_HOURS = float(os.getenv("SENTINEL_INTERVAL_HOURS", "6"))
+SENTINEL_ACTION = os.getenv("SENTINEL_ACTION", "alert").lower()  # alert | sell
+SENTINEL_CHANNELS = os.getenv(
+    "SENTINEL_CHANNELS", "binance_announcements,cointelegraph,markettwits").split(",")
+SENTINEL_PROXY = os.getenv("SENTINEL_PROXY")  # e.g. socks5h://127.0.0.1:2080 if t.me blocked
 
 # Variant selector:
 #   "classic" (default) — pick top TOP_N by past return

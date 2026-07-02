@@ -136,12 +136,26 @@ def open_picks_custom_sizing(trader: Trader, picks: list[Pick], sizes: dict[str,
     return opened
 
 
+def _stop_reference_price(trader: Trader, symbol: str) -> float | None:
+    """Price used for the stop check. close mode: last CLOSED daily bar (matches
+    backtest); tick mode: live price (legacy — killed the paper run via intraday noise)."""
+    if config.STOP_CHECK_MODE == "tick":
+        return trader.get_price(symbol)
+    try:
+        bars = trader.fetch_ohlcv(symbol, "1d", limit=2)
+        if len(bars) >= 2:
+            return float(bars[-2][4])  # close of last finished day
+    except Exception as e:
+        log.warning("stop ref fetch failed", symbol=symbol, error=str(e))
+    return None
+
+
 def check_stops(trader: Trader) -> int:
     """Check open positions for stop-loss trigger. Close if hit. Returns count stopped."""
     stopped = 0
     for row in db.get_open_positions():
         pos = db_pos_to_position(row)
-        price = trader.get_price(pos.symbol)
+        price = _stop_reference_price(trader, pos.symbol)
         if price is None:
             continue
         if strategy.should_stop(pos, price):
@@ -249,6 +263,18 @@ def run_once(trader: Trader) -> dict:
 
     # check stops on existing positions
     stopped = check_stops(trader)
+
+    # sentinel: DeepSeek negative-news check on held positions
+    if config.SENTINEL_ENABLED and config.DEEPSEEK_API_KEY:
+        last_sent = db.get_state("last_sentinel_ts")
+        now_ts = time.time()
+        if last_sent is None or now_ts - float(last_sent) >= config.SENTINEL_INTERVAL_HOURS * 3600:
+            from . import sentinel
+            try:
+                sentinel.run_sentinel(trader)
+            except Exception as e:
+                log.error("sentinel error", error=str(e))
+            db.set_state("last_sentinel_ts", now_ts)
 
     # update equity
     eq = update_equity(trader)
