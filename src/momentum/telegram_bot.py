@@ -19,13 +19,18 @@ _PROXIES = ({"https": config.TELEGRAM_PROXY, "http": config.TELEGRAM_PROXY}
 def _post(method: str, **kwargs) -> dict | None:
     if not config.TELEGRAM_BOT_TOKEN:
         return None
-    try:
-        r = requests.post(API.format(token=config.TELEGRAM_BOT_TOKEN, method=method),
-                          json=kwargs, timeout=30, proxies=_PROXIES)
-        return r.json()
-    except Exception as e:
-        log.warning("telegram post failed", method=method, error=str(e))
-        return None
+    last_err = None
+    for attempt in range(3):   # proxy flaps with SSL EOF — retry, alerts must not be lost
+        try:
+            r = requests.post(API.format(token=config.TELEGRAM_BOT_TOKEN, method=method),
+                              json=kwargs, timeout=30, proxies=_PROXIES)
+            return r.json()
+        except Exception as e:
+            last_err = e
+            import time as _t
+            _t.sleep(2 * (attempt + 1))
+    log.warning("telegram post failed", method=method, error=str(last_err))
+    return None
 
 
 def send(text: str, chat_id: str | int | None = None):
