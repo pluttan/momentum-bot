@@ -38,8 +38,19 @@ class Trader:
                 "options": {"defaultType": "spot"},
             })
         self.ex.load_markets()
-        # paper-mode virtual balance
+        # paper-mode virtual balance, reconstructed from DB so restarts don't
+        # mint fresh capital on top of already-open positions (audit 2026-07:
+        # equity doubled to $2000 after a service restart)
         self._paper_balance = {"USDT": config.TOTAL_CAPITAL}
+        if self.mode != "LIVE":
+            from . import db
+            invested = 0.0
+            for row in db.get_open_positions():
+                invested += row["capital_at_entry"]
+                base = row["symbol"].split("/")[0]
+                self._paper_balance[base] = self._paper_balance.get(base, 0) + row["units"]
+            realized = db.get_realized_pnl() - db.get_total_fees()
+            self._paper_balance["USDT"] = max(0.0, config.TOTAL_CAPITAL + realized - invested)
 
     @retry(retry=retry_if_exception_type(ccxt.NetworkError),
            stop=stop_after_attempt(3),
